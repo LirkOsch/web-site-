@@ -1,322 +1,295 @@
-import os
+import customtkinter as ctk
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import hashlib
-from collections import defaultdict
-from pathlib import Path
-import shutil
-import threading
+from tkinter import messagebox
+import string
+import random
+import json
+import uuid
+import base64
 
 
-FILE_CATEGORIES = {
-    "Изображения": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".ico"],
-    "Документы": [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf", ".odt"],
-    "Архивы": [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2"],
-    "Аудио": [".mp3", ".wav", ".flac", ".aac", ".ogg", ".wma"],
-    "Видео": [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv"],
-    "Код": [".py", ".js", ".html", ".css", ".cpp", ".c", ".h", ".java", ".php", ".rb", ".go", ".ts", ".sql"],
-    "Исполняемые": [".exe", ".msi", ".bat", ".sh", ".dll"],
-}
+def copy_to_clipboard(text):
+    root = tk.Tk()
+    root.withdraw()
+    root.clipboard_clear()
+    root.clipboard_append(text)
+    root.update()
+    root.destroy()
 
 
-class FolderOrganizer(ttk.Frame):
+ctk.set_appearance_mode("light")
+ctk.set_default_color_theme("blue")
+
+
+class PasswordGenerator(ctk.CTkFrame):
     def __init__(self, parent):
-        super().__init__(parent)
-        self.current_folder = None
+        super().__init__(parent, fg_color="transparent")
         self.build()
 
     def build(self):
-        path_frame = ttk.Frame(self)
-        path_frame.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(self, text="Генератор паролей", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(0, 15))
 
-        ttk.Label(path_frame, text="Папка:").pack(side="left")
-        self.path_var = tk.StringVar()
-        path_entry = ttk.Entry(path_frame, textvariable=self.path_var, width=50)
-        path_entry.pack(side="left", fill="x", expand=True, padx=5)
-        ttk.Button(path_frame, text="Обзор", command=self.browse_folder).pack(side="right")
+        len_frame = ctk.CTkFrame(self, fg_color="transparent")
+        len_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(len_frame, text="Длина:").pack(side="left")
+        self.length_var = tk.IntVar(value=16)
+        ctk.CTkSlider(len_frame, from_=4, to=64, variable=self.length_var, command=lambda v: self.len_label.configure(text=str(int(v)))).pack(side="left", fill="x", expand=True, padx=10)
+        self.len_label = ctk.CTkLabel(len_frame, text="16", width=30)
+        self.len_label.pack(side="right")
 
-        notebook = ttk.Notebook(self)
-        notebook.pack(fill="both", expand=True)
+        self.upper_var = tk.BooleanVar(value=True)
+        self.lower_var = tk.BooleanVar(value=True)
+        self.digits_var = tk.BooleanVar(value=True)
+        self.special_var = tk.BooleanVar(value=True)
 
-        self.organize_frame = ttk.Frame(notebook)
-        self.duplicate_frame = ttk.Frame(notebook)
-        self.analyze_frame = ttk.Frame(notebook)
+        ctk.CTkCheckBox(self, text="A-Z (верхний регистр)", variable=self.upper_var).pack(anchor="w", pady=2)
+        ctk.CTkCheckBox(self, text="a-z (нижний регистр)", variable=self.lower_var).pack(anchor="w", pady=2)
+        ctk.CTkCheckBox(self, text="0-9 (цифры)", variable=self.digits_var).pack(anchor="w", pady=2)
+        ctk.CTkCheckBox(self, text="!@# (спецсимволы)", variable=self.special_var).pack(anchor="w", pady=2)
 
-        notebook.add(self.organize_frame, text="Сортировка")
-        notebook.add(self.duplicate_frame, text="Дубликаты")
-        notebook.add(self.analyze_frame, text="Анализ")
+        ctk.CTkButton(self, text="Сгенерировать", command=self.generate).pack(pady=(15, 10))
 
-        self.build_organize()
-        self.build_duplicate()
-        self.build_analyze()
+        self.result = ctk.CTkEntry(self, state="normal")
+        self.result.pack(fill="x", pady=5)
 
-    def browse_folder(self):
-        folder = filedialog.askdirectory()
-        if folder:
-            self.path_var.set(folder)
-            self.current_folder = folder
+        ctk.CTkButton(self, text="Копировать", command=self.copy, fg_color="#00b894", hover_color="#00a381").pack(pady=5)
 
-    def get_files_in_folder(self, folder):
-        files = []
-        for entry in os.scandir(folder):
-            if entry.is_file():
-                files.append(entry.path)
-        return files
+    def generate(self):
+        chars = ""
+        if self.upper_var.get():
+            chars += string.ascii_uppercase
+        if self.lower_var.get():
+            chars += string.ascii_lowercase
+        if self.digits_var.get():
+            chars += string.digits
+        if self.special_var.get():
+            chars += "!@#$%^&*()_+-=[]{}|;:,.<>?"
+        if not chars:
+            messagebox.showwarning("Ошибка", "Выберите хотя бы один тип символов")
+            return
+        length = self.length_var.get()
+        password = "".join(random.choice(chars) for _ in range(length))
+        self.result.delete(0, "end")
+        self.result.insert(0, password)
 
-    def categorize_file(self, filepath):
-        ext = Path(filepath).suffix.lower()
-        for category, extensions in FILE_CATEGORIES.items():
-            if ext in extensions:
-                return category
-        return "Прочее"
+    def copy(self):
+        text = self.result.get()
+        if text:
+            copy_to_clipboard(text)
 
-    # ===== Organize Tab =====
-    def build_organize(self):
-        ttk.Label(self.organize_frame, text="Сортировка файлов по категориям",
-                  font=("", 14, "bold")).pack(pady=(15, 5))
-        ttk.Label(self.organize_frame,
-                  text="Файлы будут перемещены в папки по типам (Изображения, Документы, ...)",
-                  wraplength=500).pack(pady=5)
-        ttk.Label(self.organize_frame, text="Несортированные файлы попадут в папку 'Прочее'",
-                  wraplength=500, foreground="gray").pack(pady=2)
 
-        preview_frame = ttk.Frame(self.organize_frame)
-        preview_frame.pack(fill="both", expand=True, pady=10)
+class TextAnalyzer(ctk.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent, fg_color="transparent")
+        self.build()
 
-        self.organize_text = tk.Text(preview_frame, height=8, wrap="word", state="disabled")
-        scrollbar = ttk.Scrollbar(preview_frame, orient="vertical", command=self.organize_text.yview)
-        self.organize_text.configure(yscrollcommand=scrollbar.set)
-        self.organize_text.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+    def build(self):
+        ctk.CTkLabel(self, text="Анализатор текста", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(0, 15))
 
-        self.organize_progress = ttk.Progressbar(self.organize_frame, mode="determinate")
-        self.organize_progress.pack(fill="x", pady=5)
+        self.text_box = ctk.CTkTextbox(self, height=150)
+        self.text_box.pack(fill="x", pady=5)
 
-        btn_frame = ttk.Frame(self.organize_frame)
+        ctk.CTkButton(self, text="Анализировать", command=self.analyze).pack(pady=5)
+
+        self.stats_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.stats_frame.pack(fill="x", pady=5)
+        self.result_labels = {}
+        stats = ["Символов:", "Символов без пробелов:", "Слов:", "Строк:", "Предложений:"]
+        for s in stats:
+            row = ctk.CTkFrame(self.stats_frame, fg_color="transparent")
+            row.pack(fill="x", pady=1)
+            ctk.CTkLabel(row, text=s, anchor="w", width=180).pack(side="left")
+            lbl = ctk.CTkLabel(row, text="0", anchor="e")
+            lbl.pack(side="right")
+            self.result_labels[s] = lbl
+
+    def analyze(self):
+        text = self.text_box.get("0.0", "end").rstrip("\n")
+        chars = len(text)
+        chars_no_space = len(text.replace(" ", "").replace("\n", ""))
+        words = len(text.split()) if text.strip() else 0
+        lines = text.count("\n") + (1 if text else 0)
+        sentences = sum(1 for c in text if c in ".!?") if text.strip() else 0
+
+        self.result_labels["Символов:"].configure(text=str(chars))
+        self.result_labels["Символов без пробелов:"].configure(text=str(chars_no_space))
+        self.result_labels["Слов:"].configure(text=str(words))
+        self.result_labels["Строк:"].configure(text=str(lines))
+        self.result_labels["Предложений:"].configure(text=str(sentences))
+
+
+class UUIDGenerator(ctk.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent, fg_color="transparent")
+        self.build()
+
+    def build(self):
+        ctk.CTkLabel(self, text="Генератор UUID", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(0, 15))
+
+        self.count_var = tk.IntVar(value=1)
+        ctk.CTkLabel(self, text="Количество:").pack(anchor="w")
+        ctk.CTkSlider(self, from_=1, to=50, variable=self.count_var, command=lambda v: self.count_label.configure(text=str(int(v)))).pack(fill="x", pady=5)
+        self.count_label = ctk.CTkLabel(self, text="1")
+        self.count_label.pack()
+
+        self.upper_var = tk.BooleanVar(value=False)
+        ctk.CTkCheckBox(self, text="Верхний регистр", variable=self.upper_var).pack(anchor="w", pady=2)
+
+        ctk.CTkButton(self, text="Сгенерировать", command=self.generate).pack(pady=(15, 10))
+
+        self.result = ctk.CTkTextbox(self, height=120)
+        self.result.pack(fill="x", pady=5)
+
+        ctk.CTkButton(self, text="Копировать всё", command=self.copy, fg_color="#00b894", hover_color="#00a381").pack(pady=5)
+
+    def generate(self):
+        self.result.delete("0.0", "end")
+        count = self.count_var.get()
+        lines = []
+        for _ in range(count):
+            u = str(uuid.uuid4())
+            if self.upper_var.get():
+                u = u.upper()
+            lines.append(u)
+        self.result.insert("0.0", "\n".join(lines))
+
+    def copy(self):
+        text = self.result.get("0.0", "end").strip()
+        if text:
+            copy_to_clipboard(text)
+
+
+class Base64Tool(ctk.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent, fg_color="transparent")
+        self.build()
+
+    def build(self):
+        ctk.CTkLabel(self, text="Base64", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(0, 15))
+
+        ctk.CTkLabel(self, text="Входной текст:").pack(anchor="w")
+        self.input_text = ctk.CTkTextbox(self, height=100)
+        self.input_text.pack(fill="x", pady=5)
+
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", pady=5)
-        self.organize_btn = ttk.Button(btn_frame, text="Предпросмотр", command=self.preview_organize)
-        self.organize_btn.pack(side="left", padx=5)
-        self.run_organize_btn = ttk.Button(btn_frame, text="Выполнить сортировку",
-                                           command=self.run_organize)
-        self.run_organize_btn.pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Закодировать →", command=self.encode).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="← Декодировать", command=self.decode).pack(side="left", padx=5)
 
-    def preview_organize(self):
-        if not self.current_folder:
-            messagebox.showwarning("Ошибка", "Выберите папку")
+        ctk.CTkLabel(self, text="Результат:").pack(anchor="w")
+        self.output_text = ctk.CTkTextbox(self, height=100)
+        self.output_text.pack(fill="x", pady=5)
+
+        ctk.CTkButton(self, text="Копировать результат", command=self.copy, fg_color="#00b894", hover_color="#00a381").pack(pady=5)
+
+    def encode(self):
+        text = self.input_text.get("0.0", "end").rstrip("\n")
+        if not text:
+            messagebox.showwarning("Ошибка", "Введите текст для кодирования")
             return
+        encoded = base64.b64encode(text.encode()).decode()
+        self.output_text.delete("0.0", "end")
+        self.output_text.insert("0.0", encoded)
 
-        files = self.get_files_in_folder(self.current_folder)
-        if not files:
-            messagebox.showinfo("Инфо", "В папке нет файлов")
+    def decode(self):
+        text = self.input_text.get("0.0", "end").rstrip("\n")
+        if not text:
+            messagebox.showwarning("Ошибка", "Введите Base64 для декодирования")
             return
-
-        categorized = defaultdict(list)
-        for f in files:
-            cat = self.categorize_file(f)
-            categorized[cat].append(os.path.basename(f))
-
-        self.organize_text.configure(state="normal")
-        self.organize_text.delete("1.0", "end")
-        for cat in sorted(categorized.keys()):
-            names = sorted(categorized[cat])
-            self.organize_text.insert("end", f"📁 {cat} ({len(names)} файлов)\n")
-            for fn in names[:10]:
-                self.organize_text.insert("end", f"   ├ {fn}\n")
-            if len(names) > 10:
-                self.organize_text.insert("end", f"   └ ... и ещё {len(names) - 10}\n")
-        self.organize_text.configure(state="disabled")
-
-    def run_organize(self):
-        if not self.current_folder:
-            messagebox.showwarning("Ошибка", "Выберите папку")
+        try:
+            decoded = base64.b64decode(text.encode()).decode()
+        except Exception:
+            messagebox.showerror("Ошибка", "Некорректная Base64 строка")
             return
-        self.organize_btn.configure(state="disabled")
-        self.run_organize_btn.configure(state="disabled")
-        self.organize_progress["value"] = 0
-        threading.Thread(target=self._organize_thread, daemon=True).start()
+        self.output_text.delete("0.0", "end")
+        self.output_text.insert("0.0", decoded)
 
-    def _organize_thread(self):
-        files = self.get_files_in_folder(self.current_folder)
-        total = len(files)
-        categorized = defaultdict(list)
-        for f in files:
-            cat = self.categorize_file(f)
-            categorized[cat].append(f)
+    def copy(self):
+        text = self.output_text.get("0.0", "end").strip()
+        if text:
+            copy_to_clipboard(text)
 
-        processed = 0
-        for cat, file_list in categorized.items():
-            target_dir = os.path.join(self.current_folder, cat)
-            os.makedirs(target_dir, exist_ok=True)
-            for f in file_list:
-                try:
-                    dest = os.path.join(target_dir, os.path.basename(f))
-                    if os.path.normpath(f) != os.path.normpath(dest):
-                        shutil.move(f, dest)
-                except Exception:
-                    pass
-                processed += 1
-                self.organize_progress["value"] = (processed / total) * 100
 
-        self.after(0, self._organize_done)
+class JSONFormatter(ctk.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent, fg_color="transparent")
+        self.build()
 
-    def _organize_done(self):
-        self.organize_btn.configure(state="normal")
-        self.run_organize_btn.configure(state="normal")
-        messagebox.showinfo("Готово", "Сортировка завершена!")
-        self.preview_organize()
+    def build(self):
+        ctk.CTkLabel(self, text="JSON Formatter", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(0, 15))
 
-    # ===== Duplicate Tab =====
-    def build_duplicate(self):
-        ttk.Label(self.duplicate_frame, text="Поиск дубликатов файлов",
-                  font=("", 14, "bold")).pack(pady=(15, 5))
-        ttk.Label(self.duplicate_frame,
-                  text="Поиск файлов с одинаковым содержимым (по MD5 хешу)",
-                  wraplength=500).pack(pady=5)
+        ctk.CTkLabel(self, text="Введите JSON:").pack(anchor="w")
+        self.input_text = ctk.CTkTextbox(self, height=150)
+        self.input_text.pack(fill="x", pady=5)
 
-        inner = ttk.Frame(self.duplicate_frame)
-        inner.pack(fill="both", expand=True, pady=10)
-
-        self.duplicate_text = tk.Text(inner, height=10, wrap="word", state="disabled")
-        scrollbar = ttk.Scrollbar(inner, orient="vertical", command=self.duplicate_text.yview)
-        self.duplicate_text.configure(yscrollcommand=scrollbar.set)
-        self.duplicate_text.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        self.dup_progress = ttk.Progressbar(self.duplicate_frame, mode="determinate")
-        self.dup_progress.pack(fill="x", pady=5)
-
-        btn_frame = ttk.Frame(self.duplicate_frame)
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", pady=5)
-        self.dup_btn = ttk.Button(btn_frame, text="Найти дубликаты", command=self.find_duplicates)
-        self.dup_btn.pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Форматировать", command=self.format_json).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Сжать", command=self.minify_json).pack(side="left", padx=5)
 
-    def find_duplicates(self):
-        if not self.current_folder:
-            messagebox.showwarning("Ошибка", "Выберите папку")
+        ctk.CTkLabel(self, text="Результат:").pack(anchor="w")
+        self.output_text = ctk.CTkTextbox(self, height=150)
+        self.output_text.pack(fill="x", pady=5)
+
+        ctk.CTkButton(self, text="Копировать результат", command=self.copy, fg_color="#00b894", hover_color="#00a381").pack(pady=5)
+
+    def format_json(self):
+        text = self.input_text.get("0.0", "end").rstrip("\n")
+        if not text:
+            messagebox.showwarning("Ошибка", "Введите JSON")
             return
-        self.dup_btn.configure(state="disabled")
-        self.dup_progress["value"] = 0
-        threading.Thread(target=self._find_duplicates_thread, daemon=True).start()
-
-    def _find_duplicates_thread(self):
-        files = self.get_files_in_folder(self.current_folder)
-        total = len(files)
-        hash_map = {}
-        duplicates = defaultdict(list)
-
-        for i, f in enumerate(files):
-            try:
-                with open(f, "rb") as fh:
-                    file_hash = hashlib.md5(fh.read()).hexdigest()
-                if file_hash in hash_map:
-                    duplicates[file_hash].append(os.path.basename(f))
-                else:
-                    hash_map[file_hash] = os.path.basename(f)
-            except Exception:
-                pass
-            self.dup_progress["value"] = ((i + 1) / total) * 100
-
-        self.after(0, lambda: self._display_duplicates(duplicates, hash_map))
-
-    def _display_duplicates(self, duplicates, hash_map):
-        self.duplicate_text.configure(state="normal")
-        self.duplicate_text.delete("1.0", "end")
-        found = False
-        for file_hash, file_list in duplicates.items():
-            if file_list:
-                found = True
-                original = hash_map[file_hash]
-                self.duplicate_text.insert("end", f"🔄 Дубликаты ({len(file_list) + 1} шт):\n")
-                self.duplicate_text.insert("end", f"   └ {original}\n")
-                for fn in file_list:
-                    self.duplicate_text.insert("end", f"   └ {fn}\n")
-        if not found:
-            self.duplicate_text.insert("end", "✅ Дубликаты не найдены")
-        self.duplicate_text.configure(state="disabled")
-        self.dup_btn.configure(state="normal")
-
-    # ===== Analyze Tab =====
-    def build_analyze(self):
-        ttk.Label(self.analyze_frame, text="Анализ размера папки",
-                  font=("", 14, "bold")).pack(pady=(15, 5))
-
-        inner = ttk.Frame(self.analyze_frame)
-        inner.pack(fill="both", expand=True, pady=10)
-
-        self.analyze_text = tk.Text(inner, height=12, wrap="word", state="disabled")
-        scrollbar = ttk.Scrollbar(inner, orient="vertical", command=self.analyze_text.yview)
-        self.analyze_text.configure(yscrollcommand=scrollbar.set)
-        self.analyze_text.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        self.analyze_progress = ttk.Progressbar(self.analyze_frame, mode="determinate")
-        self.analyze_progress.pack(fill="x", pady=5)
-
-        btn_frame = ttk.Frame(self.analyze_frame)
-        btn_frame.pack(fill="x", pady=5)
-        self.analyze_btn = ttk.Button(btn_frame, text="Анализировать", command=self.analyze_folder)
-        self.analyze_btn.pack(side="left", padx=5)
-
-    def analyze_folder(self):
-        if not self.current_folder:
-            messagebox.showwarning("Ошибка", "Выберите папку")
+        try:
+            parsed = json.loads(text)
+            formatted = json.dumps(parsed, indent=2, ensure_ascii=False)
+        except json.JSONDecodeError as e:
+            messagebox.showerror("Ошибка JSON", str(e))
             return
-        self.analyze_btn.configure(state="disabled")
-        self.analyze_progress["value"] = 0
-        threading.Thread(target=self._analyze_thread, daemon=True).start()
+        self.output_text.delete("0.0", "end")
+        self.output_text.insert("0.0", formatted)
 
-    def _analyze_thread(self):
-        categories = defaultdict(list)
-        for f in self.get_files_in_folder(self.current_folder):
-            cat = self.categorize_file(f)
-            categories[cat].append(f)
+    def minify_json(self):
+        text = self.input_text.get("0.0", "end").rstrip("\n")
+        if not text:
+            messagebox.showwarning("Ошибка", "Введите JSON")
+            return
+        try:
+            parsed = json.loads(text)
+            minified = json.dumps(parsed, separators=(",", ":"), ensure_ascii=False)
+        except json.JSONDecodeError as e:
+            messagebox.showerror("Ошибка JSON", str(e))
+            return
+        self.output_text.delete("0.0", "end")
+        self.output_text.insert("0.0", minified)
 
-        results = []
-        total_files = 0
-        for cat, file_list in categories.items():
-            size = sum(os.path.getsize(f) for f in file_list if os.path.exists(f))
-            total_files += len(file_list)
-            results.append((cat, len(file_list), size))
-
-        results.sort(key=lambda x: x[2], reverse=True)
-        self.after(0, lambda: self._display_analyze(results, total_files))
-
-    def _display_analyze(self, results, total_files):
-        self.analyze_text.configure(state="normal")
-        self.analyze_text.delete("1.0", "end")
-        self.analyze_text.insert("end", f"Всего файлов: {total_files}\n\n")
-        for cat, count, size in results:
-            size_str = self.format_size(size)
-            max_bar = 20
-            bar_len = max_bar if size > 0 else 1
-            bar = "█" * int(bar_len)
-            self.analyze_text.insert("end", f"{cat}:\n")
-            self.analyze_text.insert("end", f"   Файлов: {count}  |  {size_str}\n")
-            self.analyze_text.insert("end", f"   [{bar}]\n\n")
-        self.analyze_text.configure(state="disabled")
-        self.analyze_btn.configure(state="normal")
-
-    def format_size(self, size):
-        for unit in ["Б", "КБ", "МБ", "ГБ"]:
-            if size < 1024:
-                return f"{size:.1f} {unit}"
-            size /= 1024
-        return f"{size:.1f} ТБ"
+    def copy(self):
+        text = self.output_text.get("0.0", "end").strip()
+        if text:
+            copy_to_clipboard(text)
 
 
-class App(tk.Tk):
+class DevToolsPro(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Folder Organizer")
-        self.geometry("650x550")
-        self.minsize(500, 400)
+        self.title("DevTools Pro")
+        self.geometry("700x580")
+        self.minsize(600, 500)
 
-        style = ttk.Style()
-        style.theme_use("vista")
+        self.tab_view = ctk.CTkTabview(self, anchor="nw")
+        self.tab_view.pack(fill="both", expand=True, padx=10, pady=10)
 
-        FolderOrganizer(self).pack(fill="both", expand=True, padx=10, pady=10)
+        tools = [
+            ("Пароли", PasswordGenerator),
+            ("Текст", TextAnalyzer),
+            ("UUID", UUIDGenerator),
+            ("Base64", Base64Tool),
+            ("JSON", JSONFormatter),
+        ]
+
+        for name, cls in tools:
+            tab = self.tab_view.add(name)
+            cls(tab).pack(fill="both", expand=True, padx=10, pady=10)
 
 
 if __name__ == "__main__":
-    app = App()
+    app = DevToolsPro()
     app.mainloop()
