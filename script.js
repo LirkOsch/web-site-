@@ -1,11 +1,11 @@
 document.addEventListener('DOMContentLoaded', function () {
     /* ===== Typing Effect ===== */
     const phrases = [
-        'Пишу чистый код на Python',
-        'Создаю современные веб-сайты',
-        'Автоматизирую бизнес-процессы',
-        'Разрабатываю десктоп-приложения',
-        'Превращаю идеи в работающий продукт'
+        'Clean Python code writer',
+        'Modern website creator',
+        'Business process automation',
+        'Desktop app developer',
+        'Turning ideas into working products'
     ];
 
     const el = document.getElementById('typedText');
@@ -101,29 +101,29 @@ document.addEventListener('DOMContentLoaded', function () {
         let valid = true;
 
         if (!nameInput.value.trim()) {
-            nameError.textContent = 'Введите имя';
+            nameError.textContent = 'Enter your name';
             nameInput.classList.add('error');
             valid = false;
         }
 
         if (!emailInput.value.trim()) {
-            emailError.textContent = 'Введите email';
+            emailError.textContent = 'Enter your email';
             emailInput.classList.add('error');
             valid = false;
         } else if (!validateEmail(emailInput.value.trim())) {
-            emailError.textContent = 'Некорректный email';
+            emailError.textContent = 'Invalid email';
             emailInput.classList.add('error');
             valid = false;
         }
 
         if (!messageInput.value.trim()) {
-            messageError.textContent = 'Введите сообщение';
+            messageError.textContent = 'Enter your message';
             messageInput.classList.add('error');
             valid = false;
         }
 
         if (valid) {
-            showToast('Спасибо! Я свяжусь с вами в ближайшее время.');
+            showToast('Thank you! I will get back to you soon.');
             form.reset();
         }
     });
