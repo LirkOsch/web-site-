@@ -1,0 +1,33 @@
+#include <iostream>
+using namespace std;
+
+int max_num_massive(int massive[], int size_massive) {
+    int result = massive[0];
+    for (int i = 1;i < size_massive;i++) {
+        if (massive[i] > result) {
+            result = massive[i];
+        }
+    }
+    return result;
+}
+int min_num_massive(int massive[], int size_massive) {
+    int result = massive[0];
+    for(int i =  1; i < size_massive; i++)
+        if (massive[i] < result) {
+            result = massive[i];
+        }
+    return result;
+}
+
+int main()
+{
+    int massive_me[5];
+    for (int i = 0; i < 5;i++) {
+        cin >> massive_me[i];
+    }
+    int max = max_num_massive(massive_me, 5);
+    int min = min_num_massive(massive_me, 5);
+    cout << max << min;
+    return 0;
+    
+}
