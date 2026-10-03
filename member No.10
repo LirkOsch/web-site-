@@ -1,0 +1,79 @@
+#include <iostream>
+using namespace std;
+int main()
+{
+    int n;
+    cin >> n;
+    
+    int max = 0;
+    if (n == 10) {
+        for (int c = 0; c < n;c++) {
+            cout << " ";
+        }
+        cout << endl;
+        for (int d = 0; d < ((n-2)/2);d++) {
+            cout << " ";
+        }
+        cout << "__";
+        cout << endl;
+        for (int e = 0; e < ((n*3)/10);e++) {
+            cout << " ";
+        }
+        cout <<"/"<<"__"<<"\\";
+        cout << endl;
+        for (int f = 0; f < ((n*3)/10);f++) {
+            cout << " ";
+        }
+        cout << "|" << "  " << "|";
+        cout << endl;
+        for (int g = 0; g < ((n * 3) / 10);g++) {
+            cout << " ";
+        }
+        cout << "|" << "  " << "|";
+        cout << endl;
+        for (int h = 0; h < (n /5);h++) {
+            cout << " ";
+        }
+        cout <<"_" << "|" << "  " << "|"<<"_";
+        cout << endl;
+        
+        for (int j = 0; j < (n/10);j++) {
+            cout << " ";
+        }
+        cout << "/" << "  " << "\\" << "/" << "  " << "\\";
+        cout << endl;
+        for (int k = 0; k < (n/10);k++) {
+            cout << " ";
+        }
+        cout << "\\" << "__" << "/" << "\\" << "__" << "/";
+        cout << endl;
+
+    }
+    else {
+        for (int a = 0; a < n; a++) {
+            cout << endl;
+            if (n % 2 == 0) {
+                for (int b = 0; b < n;b++) {
+                    if (b % 2 == 0) {
+                        cout << "1";
+                    }
+                    else {
+                        cout << "0";
+                    }
+                }
+            }
+            else {
+                for (int b = 0; b < n;b++) {
+                    if (b % 2 == 0) {
+                        cout << "1";
+                    }
+                    else {
+                        cout << "0";
+                    }
+                }
+            }
+        }
+    }
+    
+}
+
