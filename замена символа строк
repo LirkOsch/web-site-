@@ -3,12 +3,14 @@
 using namespace std;
 int main() {
 	string text;
-	char a = 'a';
+	char a[]{'a','o','i','e','u'};
 	char s = '*';
 	getline(cin, text);
 	for (int i = 0;i < text.size();i++) {
-		if (text[i] == a) {
-			text[i] = s;
+		for (int j = 0; j < 5; j++) {
+			if (text[i] == a[j]) {
+				text[i] = s;
+			}
 		}
 	}
 	cout << text;
